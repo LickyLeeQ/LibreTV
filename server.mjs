@@ -153,9 +153,10 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           url: targetUrl,
           responseType: 'stream',
           timeout: config.timeout,
-          headers: {
-            'User-Agent': config.userAgent
-          }
+         headers: {
+  'User-Agent': config.userAgent,
+  ...(targetUrl.includes('doubanio.com') ? { 'Referer': 'https://movie.douban.com/' } : {})
+}
         });
       } catch (error) {
         if (retries < maxRetries) {
