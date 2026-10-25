@@ -6,12 +6,9 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-
 dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const config = {
   port: process.env.PORT || 8080,
   password: process.env.PASSWORD || '',
@@ -23,28 +20,23 @@ const config = {
   userAgent: process.env.USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
   debug: process.env.DEBUG === 'true'
 };
-
 const log = (...args) => {
   if (config.debug) {
     console.log('[DEBUG]', ...args);
   }
 };
-
 const app = express();
-
 app.use(cors({
   origin: config.corsOrigin,
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   next();
 });
-
 function sha256Hash(input) {
   return new Promise((resolve) => {
     const hash = crypto.createHash('sha256');
@@ -52,7 +44,6 @@ function sha256Hash(input) {
     resolve(hash.digest('hex'));
   });
 }
-
 async function renderPage(filePath, password) {
   let content = fs.readFileSync(filePath, 'utf8');
   if (password !== '') {
@@ -66,7 +57,6 @@ async function renderPage(filePath, password) {
   } 
   return content;
 }
-
 app.get(['/', '/index.html', '/player.html'], async (req, res) => {
   try {
     let filePath;
@@ -86,7 +76,6 @@ app.get(['/', '/index.html', '/player.html'], async (req, res) => {
     res.status(500).send('读取静态页面失败');
   }
 });
-
 app.get('/s=:keyword', async (req, res) => {
   try {
     const filePath = path.join(__dirname, 'index.html');
@@ -97,7 +86,6 @@ app.get('/s=:keyword', async (req, res) => {
     res.status(500).send('读取静态页面失败');
   }
 });
-
 function isValidUrl(urlString) {
   try {
     const parsed = new URL(urlString);
@@ -121,27 +109,22 @@ function isValidUrl(urlString) {
     return false;
   }
 }
-
 // 修复反向代理处理过的路径
 app.use('/proxy', (req, res, next) => {
   const targetUrl = req.url.replace(/^\//, '').replace(/(https?:)\/([^/])/, '$1//$2');
   req.url = '/' + encodeURIComponent(targetUrl);
   next();
 });
-
 // 代理路由
 app.get('/proxy/:encodedUrl', async (req, res) => {
   try {
     const encodedUrl = req.params.encodedUrl;
     const targetUrl = decodeURIComponent(encodedUrl);
-
     // 安全验证
     if (!isValidUrl(targetUrl)) {
       return res.status(400).send('无效的 URL');
     }
-
     log(`代理请求: ${targetUrl}`);
-
     // 添加请求超时和重试逻辑
     const maxRetries = config.maxRetries;
     let retries = 0;
@@ -153,10 +136,11 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           url: targetUrl,
           responseType: 'stream',
           timeout: config.timeout,
-         headers: {
-  'User-Agent': config.userAgent,
-  ...(targetUrl.includes('doubanio.com') ? { 'Referer': 'https://movie.douban.com/' } : {})
-}
+          headers: {
+            'User-Agent': config.userAgent,
+            // 豆瓣图床反爬：无合法 Referer 的请求返回 418；仅对豆瓣图片域名补充 Referer，不影响其他视频源
+            ...(targetUrl.includes('doubanio.com') ? { 'Referer': 'https://movie.douban.com/' } : {})
+          }
         });
       } catch (error) {
         if (retries < maxRetries) {
@@ -167,9 +151,7 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
         throw error;
       }
     };
-
     const response = await makeRequest();
-
     // 转发响应头（过滤敏感头）
     const headers = { ...response.headers };
     const sensitiveHeaders = (
@@ -179,7 +161,6 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     
     sensitiveHeaders.forEach(header => delete headers[header]);
     res.set(headers);
-
     // 管道传输响应流
     response.data.pipe(res);
   } catch (error) {
@@ -192,20 +173,16 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     }
   }
 });
-
 app.use(express.static(path.join(__dirname), {
   maxAge: config.cacheMaxAge
 }));
-
 app.use((err, req, res, next) => {
   console.error('服务器错误:', err);
   res.status(500).send('服务器内部错误');
 });
-
 app.use((req, res) => {
   res.status(404).send('页面未找到');
 });
-
 // 启动服务器
 app.listen(config.port, () => {
   console.log(`服务器运行在 http://localhost:${config.port}`);
